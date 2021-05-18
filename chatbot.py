@@ -9,7 +9,7 @@ import numpy as np, tensorflow as tf, time, re, contractions
 #Importação da base de dados
 linhas = open(".\\recursos\\movie_lines.txt",encoding='utf-8',errors="ignore").read().split("\n")
 conversas = open(".\\recursos\\movie_conversations.txt",encoding='utf-8',errors="ignore").read().split("\n")
-cont = Contractions('GoogleNews-vectors-negative300.bin')
+#cont = Contractions('GoogleNews-vectors-negative300.bin')
 # Criação de um dicionário para mapear cada linha com seu ID
 id_para_linha = dict()
 
@@ -32,6 +32,7 @@ for conversa in conversas_id:
         perguntas.append(id_para_linha[conversa[i]])
         respostas.append(id_para_linha[conversa[i + 1]])
 
+respostas_limpas = [re.sub("[\W]",lambda w:"" if w.group(0) not in "! " else w.group(0),contractions.fix(w)) for w in respostas]
+perguntas_limpas = [re.sub("[\W]",lambda w:"" if w.group(0) not in "! " else w.group(0),contractions.fix(w)) for w in perguntas]
 
-    
-        
+
