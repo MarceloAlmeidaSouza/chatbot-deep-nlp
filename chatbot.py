@@ -7,7 +7,7 @@ import numpy as np, tensorflow as tf, time, re, contractions
 #1 Parte pré-processamento dos dados
 
 #Importação da base de dados
-linhas = open(".\\recursos\\movie_lines.txt",encoding='utf-8',errors="ignore").read().lower().split("\n")
+linhas = open('.\\recursos\\movie_lines.txt',encoding='utf-8',errors="ignore").read().lower().split("\n")
 conversas = open(".\\recursos\\movie_conversations.txt",encoding='utf-8',errors="ignore").read().lower().split("\n")
 #cont = Contractions('GoogleNews-vectors-negative300.bin')
 # Criação de um dicionário para mapear cada linha com seu ID
@@ -63,7 +63,7 @@ respostas_palavras_int = perguntas_palavras_int.copy()
 
 # Adição de tokens ao dicionário
 tokens = ['<PAD>','<EOS>','<OUT>','<SOS>']
-for k, index in zip(tokens,range(1,len(tokens)+1)):
+for k, index in enumerate(tokens,1):
     perguntas_palavras_int[k] = len(perguntas_palavras_int) + index
     respostas_palavras_int[k] = len(respostas_palavras_int) + index
     
@@ -95,3 +95,23 @@ for resposta in respostas_limpas:
         else:
             ints.append(respostas_palavras_int[palavra])
     respostas_para_int.append(ints)
+    
+    
+# Ordernação das perguntas e respostas pelo tamanho das perguntas
+perguntas_limpas_ordenadas = []
+respostas_limpas_ordenadas = []
+for tamanho in range(1, 25 + 1):
+    for i in enumerate(perguntas_para_int):
+        if len(i[1]) == tamanho:
+            perguntas_limpas_ordenadas.append(perguntas_para_int[i[0]])
+            respostas_limpas_ordenadas.append(respostas_para_int[i[0]])
+            
+# --- Parte 2 - Construção do modelo Seq2Seq ---
+# Criação de placeholders para as entradas e saídas
+# [64, 25]
+def entradas_modelo():
+    entradas = tf.placeholder(tf.int32,[None,None],name='entradas')
+    saidas = tf.placeholder(tf.int32,[None,None],name='saidas')
+    lr = tf.placeholder(tf.float32, name="learning_rate")
+    keep_prob = tf.placeholder(tf.float32,name='keep_prob')
+    return entradas, saidas, lr, keep_prob
