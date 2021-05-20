@@ -1,9 +1,11 @@
 #Construção do chatbot com Deep NLP
+#pip install tensorflow-addons
 
 #Importação das bibliotecas
 import numpy as np, time, re, contractions, tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 import tensorflow as tf2
+import tensorflow_addons as tfa
 #from pycontractions import Contractions
 
 #1 Parte pré-processamento dos dados
@@ -14,6 +16,18 @@ conversas = open(".\\recursos\\movie_conversations.txt",encoding='utf-8',errors=
 #cont = Contractions('GoogleNews-vectors-negative300.bin')
 # Criação de um dicionário para mapear cada linha com seu ID
 id_para_linha = dict()
+LSTMCell = None
+seq2seq = None
+
+def tensorflow_scope():
+    #LSTMCell = tf.contrib.rnn.LSTMCell
+    #LSTMCell = tf.keras.layers.LSTMCell
+    LSTMCell = tf2.compat.v1.nn.rnn_cell.LSTMCell
+    tensorflow.nn
+    seq2seq = tfa.seq2seq
+    
+    
+tensorflow_scope()
 
 for l in linhas:
     _l = l.split(" +++$+++ ")
@@ -127,7 +141,7 @@ def preprocessamento_saidas(saidas,palavra_para_int,batch_size):
 
 # Criação da camada RNN do codificador
 def rnn_codificador(rnn_entradas,rnn_tamanho,numero_camadas,keep_prob,tamanho_sequencia):
-    lstm = tf.contrib.rnn.LSTMCell(rnn_tamanho)
+    lstm = LSTMCell(rnn_tamanho)
     lstm_dropout = tf.contrib.rnn.DropoutWrapper(lstm,input_keep_prob=keep_prob)
     encoder_celula = tf.contrib.rnn.MultiRNNCell([lstm_dropout] * numero_camadas)
     _, encoder_estado = tf.rnn.bidirectional_dynamic_rnn(cell_fw=encoder_celula,
@@ -145,13 +159,13 @@ def decodifica_base_treinamento(encoder_estado,decodificador_celula,
     attention_keys,attention_values,attention_score_function,attention_construct_function = tf.contrib.seq2seq.prepare_attention(estados_atencao,
                                                                                                                                   attention_option='bahdanau',
                                                                                                                                   num_units=decodificador_celula.outputs_size)
-    funcao_decodificador_treinamento = tf.contrib.seq2seq.attention_decoder_fn_train(encoder_estado[0],
+    funcao_decodificador_treinamento = seq2seq.attention_decoder_fn_train(encoder_estado[0],
                                                                                      attention_keys,
                                                                                      attention_values,
                                                                                      attention_score_function,
                                                                                      attention_construct_function,
                                                                                      name='attn_dec_train')
-    decodificador_saida, _, _ = tf.contrib.seq2seq.dynamic_rnn_decoder(decodificador_celula,funcao_decodificador_treinamento,
+    decodificador_saida, _, _ = seq2seq.dynamic_rnn_decoder(decodificador_celula,funcao_decodificador_treinamento,
                                                                        decodificador_embedded_entrada,
                                                                        tamanho_sequencia,scope=decodificador_escopo)
     decodificador_saida_dropout = tf.rnn.dropout(decodificador_saida,keep_prob)
