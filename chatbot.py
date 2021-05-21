@@ -1,11 +1,9 @@
 #Construção do chatbot com Deep NLP
 #pip install tensorflow-addons
-
+#pip instrall contractions==0.0.18
+#conda install python=3.6
 #Importação das bibliotecas
-import numpy as np, time, re, contractions, tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
-import tensorflow as tf2
-import tensorflow_addons as tfa
+import numpy as np, time, re, contractions, tensorflow as tf
 #from pycontractions import Contractions
 
 #1 Parte pré-processamento dos dados
@@ -16,19 +14,8 @@ conversas = open(".\\recursos\\movie_conversations.txt",encoding='utf-8',errors=
 #cont = Contractions('GoogleNews-vectors-negative300.bin')
 # Criação de um dicionário para mapear cada linha com seu ID
 id_para_linha = dict()
-LSTMCell = None
-seq2seq = None
-
-def tensorflow_scope():
-    #LSTMCell = tf.contrib.rnn.LSTMCell
-    #LSTMCell = tf.keras.layers.LSTMCell
-    LSTMCell = tf2.compat.v1.nn.rnn_cell.LSTMCell
-    tensorflow.nn
-    seq2seq = tfa.seq2seq
     
-    
-tensorflow_scope()
-
+   
 for l in linhas:
     _l = l.split(" +++$+++ ")
     if len(_l) == 5:
@@ -126,92 +113,101 @@ for tamanho in range(1, 25 + 1):
 # Criação de placeholders para as entradas e saídas
 # [64, 25]
 def entradas_modelo():
-    entradas = tf.placeholder(tf.int32,[None,None],name='entradas')
-    saidas = tf.placeholder(tf.int32,[None,None],name='saidas')
-    lr = tf.placeholder(tf.float32, name="learning_rate")
-    keep_prob = tf.placeholder(tf.float32,name='keep_prob')
+    entradas = tf.placeholder(tf.int32, [None, None], name = 'entradas')
+    saidas = tf.placeholder(tf.int32, [None, None], name = 'saidas')
+    lr = tf.placeholder(tf.float32, name = 'learning_rate')
+    keep_prob = tf.placeholder(tf.float32, name = 'keep_prob')
     return entradas, saidas, lr, keep_prob
 
 # Pré-processamento das saídas (alvos)
-def preprocessamento_saidas(saidas,palavra_para_int,batch_size):
-    esquerda = tf.fill([batch_size,1],palavra_para_int['<SOS>'])
-    direita = tf.strided_slice(saidas,[0,0], [batch_size,-1],strides=[1,1])
-    saidas_preprocessadas = tf.concat([esquerda,direita],1)
+# [batch_size, 1] = [64, 1]
+# 0 - SOS (8825)
+# 1 - SOS (8825)
+def preprocessamento_saidas(saidas, palavra_para_int, batch_size):
+    esquerda = tf.fill([batch_size, 1], palavra_para_int['<SOS>'])
+    direita = tf.strided_slice(saidas, [0,0], [batch_size, -1], strides = [1,1])
+    saidas_preprocessadas = tf.concat([esquerda, direita], 1)
     return saidas_preprocessadas
 
-# Criação da camada RNN do codificador
-def rnn_codificador(rnn_entradas,rnn_tamanho,numero_camadas,keep_prob,tamanho_sequencia):
-    lstm = LSTMCell(rnn_tamanho)
-    lstm_dropout = tf.contrib.rnn.DropoutWrapper(lstm,input_keep_prob=keep_prob)
+# Criação da RNN do codificador
+#tf.VERSION    
+def rnn_codificador(rnn_entradas, rnn_tamanho, numero_camadas, keep_prob, tamanho_sequencia):
+    lstm = tf.contrib.rnn.LSTMCell(rnn_tamanho)
+    lstm_dropout = tf.contrib.rnn.DropoutWrapper(lstm, input_keep_prob = keep_prob)
     encoder_celula = tf.contrib.rnn.MultiRNNCell([lstm_dropout] * numero_camadas)
-    _, encoder_estado = tf.rnn.bidirectional_dynamic_rnn(cell_fw=encoder_celula,
-                                                         cell_bw=encoder_celula,
-                                                         sequence_length=tamanho_sequencia,
-                                                         inputs=rnn_entradas,
-                                                         dtype=tf.float32)
+    _, encoder_estado = tf.nn.bidirectional_dynamic_rnn(cell_fw = encoder_celula,
+                                                     cell_bw = encoder_celula,
+                                                     sequence_length = tamanho_sequencia,
+                                                     inputs = rnn_entradas,
+                                                     dtype = tf.float32)
     return encoder_estado
 
 # Decodificação da base de treinamento
-def decodifica_base_treinamento(encoder_estado,decodificador_celula,
-                                decodificador_embedded_entrada,tamanho_sequencia,
-                                decodificador_escopo,funcao_saida,keep_prob,batch_size):
-    estados_atencao = tf.zeros([batch_size,1,decodificador_celula.outputs_size])
-    attention_keys,attention_values,attention_score_function,attention_construct_function = tf.contrib.seq2seq.prepare_attention(estados_atencao,
-                                                                                                                                  attention_option='bahdanau',
-                                                                                                                                  num_units=decodificador_celula.outputs_size)
-    funcao_decodificador_treinamento = seq2seq.attention_decoder_fn_train(encoder_estado[0],
-                                                                                     attention_keys,
-                                                                                     attention_values,
-                                                                                     attention_score_function,
+def decodifica_base_treinamento(encoder_estado, decodificador_celula, 
+                                decodificador_embedded_entrada, tamanho_sequencia,
+                                decodificador_escopo, funcao_saida,
+                                keep_prob, batch_size):
+    estados_atencao = tf.zeros([batch_size, 1, decodificador_celula.output_size])
+    attention_keys, attention_values, attention_score_function, attention_construct_function = tf.contrib.seq2seq.prepare_attention(estados_atencao,
+                                                                                                                                    attention_option = 'bahdanau',
+                                                                                                                                    num_units = decodificador_celula.output_size)
+    funcao_decodificador_treinamento = tf.contrib.seq2seq.attention_decoder_fn_train(encoder_estado[0],
+                                                                                     attention_keys, 
+                                                                                     attention_values, 
+                                                                                     attention_score_function, 
                                                                                      attention_construct_function,
-                                                                                     name='attn_dec_train')
-    decodificador_saida, _, _ = seq2seq.dynamic_rnn_decoder(decodificador_celula,funcao_decodificador_treinamento,
+                                                                                     name = 'attn_dec_train')
+    decodificador_saida, _, _ = tf.contrib.seq2seq.dynamic_rnn_decoder(decodificador_celula,
+                                                                       funcao_decodificador_treinamento,
                                                                        decodificador_embedded_entrada,
-                                                                       tamanho_sequencia,scope=decodificador_escopo)
-    decodificador_saida_dropout = tf.rnn.dropout(decodificador_saida,keep_prob)
-    return funcao_saida(decodificador_saida_dropout)
-   
-# Decodificação da base de teste/validacao
-def decodifica_base_teste(encoder_estado,decodificador_celula,
-                          decodificador_embedding_matrix,
-                          sos_id,eos_id,tamanho_maximo,numero_palavras,
-                          decodificador_escopo,funcao_saida,keep_prop,batch_size):
-    estados_atencao = tf.zeros([batch_size,1,decodificador_celula.outputs_size])
-    attention_keys,attention_values,attention_score_function,attention_construct_function = tf.contrib.seq2seq.prepare_attention(estados_atencao,
-                                                                                                                                  attention_option='bahdanau',
-                                                                                                                                  num_units=decodificador_celula.outputs_size)
+                                                                       tamanho_sequencia,
+                                                                       scope = decodificador_escopo)
+    decodificador_saida_dropout = tf.nn.dropout(decodificador_saida, keep_prob)
+    return funcao_saida(decodificador_saida_dropout)  
+    
+# Decodificação da base de teste/validação
+def decodifica_base_teste(encoder_estado, decodificador_celula, 
+                          decodificador_embedding_matrix,sos_id, eos_id, tamanho_maximo,
+                          numero_palavras, decodificador_escopo, funcao_saida,
+                          keep_prob, batch_size):                          
+    estados_atencao = tf.zeros([batch_size, 1, decodificador_celula.output_size])
+    attention_keys, attention_values, attention_score_function, attention_construct_function = tf.contrib.seq2seq.prepare_attention(estados_atencao,
+                                                                                                                                    attention_option = 'bahdanau',
+                                                                                                                                    num_units = decodificador_celula.output_size)
     funcao_decodificador_teste = tf.contrib.seq2seq.attention_decoder_fn_inference(funcao_saida,
                                                                                    encoder_estado[0],
-                                                                                   attention_keys,
-                                                                                   attention_values,
-                                                                                   attention_score_function,
+                                                                                   attention_keys, 
+                                                                                  attention_values, 
+                                                                                   attention_score_function, 
                                                                                    attention_construct_function,
                                                                                    decodificador_embedding_matrix,
                                                                                    sos_id,
                                                                                    eos_id,
                                                                                    tamanho_maximo,
                                                                                    numero_palavras,
-                                                                                   name='attn_dec_inf')
+                                                                                   name = 'attn_dec_inf')
     previsoes_teste, _, _ = tf.contrib.seq2seq.dynamic_rnn_decoder(decodificador_celula,
-                                                                        funcao_decodificador_teste,
-                                                                        scope=decodificador_escopo)
-    return previsoes_teste
+                                                                   funcao_decodificador_teste,
+                                                                   scope = decodificador_escopo)
+    return previsoes_teste  
 
 # Criação da RNN do decodificador
-def rnn_decodificador(decodificador_embedded_entrada,decodificador_embedding_matrix,
-                      codificador_estado,numero_palavras,tamanho_sequencia,rnn_tamanho,
-                      numero_camadas,palavra_para_int,keep_prob,batch_size):
+def rnn_decodificador(decodificador_embedded_entrada, decodificador_embeddings_matrix,
+                      codificador_estado, numero_palavras, tamanho_sequencia, rnn_tamanho,
+                      numero_camadas, palavra_para_int, keep_prob, batch_size):
     with tf.variable_scope("decodificador") as decodificador_escopo:
         lstm = tf.contrib.rnn.LSTMCell(rnn_tamanho)
-        lstm_dropout = tf.contrib.rnn.DropoutWrapper(lstm,input_keep_prob=keep_prob)
+        lstm_dropout = tf.contrib.rnn.DropoutWrapper(lstm, input_keep_prob = keep_prob)
         decodificador_celula = tf.contrib.rnn.MultiRNNCell([lstm_dropout] * numero_camadas)
-        pesos = tf.truncated_normal_initializer(stddev=0.1)
+        pesos = tf.truncated_normal_initializer(stddev = 0.1)
         biases = tf.zeros_initializer()
-        funcao_saida = lambda x : tf.contrib.layers.fully_connected(x,numero_palavras,
-                                                                    None,scope=decodificador_escopo,
-                                                                    weights_initializer=pesos,
-                                                                    biases_initializer=biases)
-        previsoes_treinamento = decodifica_base_treinamento(codificador_estado,decodificador_celula,
+        funcao_saida = lambda x: tf.contrib.layers.fully_connected(x, numero_palavras,
+                                                                   None,
+                                                                   scope = decodificador_escopo,
+                                                                   weights_initializer = pesos,
+                                                                   biases_initializer = biases)
+        previsoes_treinamento = decodifica_base_treinamento(codificador_estado,
+                                                            decodificador_celula,
                                                             decodificador_embedded_entrada,
                                                             tamanho_sequencia,
                                                             decodificador_escopo,
@@ -219,12 +215,83 @@ def rnn_decodificador(decodificador_embedded_entrada,decodificador_embedding_mat
                                                             keep_prob,
                                                             batch_size)
         decodificador_escopo.reuse_variables()
-        previsoes_teste = decodifica_base_teste(codificador_estado, decodificador_celula, decodificador_embedding_matrix, palavra_para_int['<SOS>'], palavra_para_int['<EOS>'], tamanho_sequencia - 1, numero_palavras, decodificador_escopo, funcao_saida, keep_prob, batch_size)
-        
+        previsoes_teste = decodifica_base_teste(codificador_estado,
+                                                decodificador_celula,
+                                                decodificador_embeddings_matrix,
+                                                palavra_para_int['<SOS>'],
+                                                palavra_para_int['<EOS>'],
+                                                tamanho_sequencia - 1,
+                                                numero_palavras,
+                                                decodificador_escopo,
+                                                funcao_saida,
+                                                keep_prob,
+                                                batch_size)
         return previsoes_treinamento, previsoes_teste
     
-def modelo_seq2seq(entradas,saidas,keep_prob,batch_size,tamanho_sequencia,
-                   numero_palavras_respostas,numero_palavras_perguntas,
+# Criação do modelo Seq2Seq
+def modelo_seq2seq(entradas, saidas, keep_prob, batch_size, tamanho_sequencia,
+                   numero_palavras_respostas, numero_palavras_perguntas,
                    tamanho_codificador_embeddings, tamanho_decodificador_embeddings,
-                   rnn_tamanho, numero_camandas,perguntas_palavras_int):
-    codif
+                   rnn_tamanho, numero_camadas, perguntas_palavras_int):
+    codificador_embedded_entrada = tf.contrib.layers.embed_sequence(entradas,
+                                                                    numero_palavras_respostas + 1,
+                                                                    tamanho_codificador_embeddings,
+                                                                    initializer = tf.random_uniform_initializer(0,1))
+    codificador_estado = rnn_codificador(codificador_embedded_entrada,
+                                         rnn_tamanho, numero_camadas,
+                                         keep_prob, tamanho_sequencia)
+    saidas_preprocessadas = preprocessamento_saidas(saidas, perguntas_palavras_int, batch_size)
+    decodificador_embeddings_matrix = tf.Variable(tf.random_uniform([numero_palavras_perguntas + 1,
+                                                                     tamanho_decodificador_embeddings], 0, 1))
+    decodificador_embedded_entradas = tf.nn.embedding_lookup(decodificador_embeddings_matrix,
+                                                             saidas_preprocessadas)
+    previsoes_treinamento, previsoes_teste = rnn_decodificador(decodificador_embedded_entradas,
+                                                               decodificador_embeddings_matrix,
+                                                               codificador_estado,
+                                                               numero_palavras_perguntas,
+                                                               tamanho_sequencia,
+                                                               rnn_tamanho,
+                                                               numero_camadas,
+                                                               perguntas_palavras_int,
+                                                               keep_prob,
+                                                               batch_size)
+    return previsoes_treinamento, previsoes_teste
+#Configuração dos hiperparâmetros
+epocas = 100
+batch_size = 64
+rnn_tamanho = 512
+numero_camadas = 3
+tamanho_codificador_embeddings = 512
+tamanho_decodificador_embeddings = 512
+learning_rate = .01
+learning_rate_decaimento = .9
+min_learning_rate = .0001
+probability_dropout = .5
+
+# Definição da seção
+tf.reset_default_graph()
+session = tf.InteractiveSession()
+
+# Carregamento do modelo
+entradas, saidas, lr, keep_prob = entradas_modelo()
+
+# Configuração do tamanho da sequência
+tamanho_sequencia = tf.placeholder_with_default(25,None,name="tamanho_sequencia")
+
+# Obtenção das dimensões dos tensores de entrada
+dimensao_entrada = tf.shape(entradas)
+
+# Obtenção das previsões de treinamento e teste
+previsoes_treinamento, previsoes_teste = modelo_seq2seq(tf.reverse(entradas,[-1]),
+                                                        saidas,
+                                                        keep_prob,
+                                                        batch_size,
+                                                        tamanho_sequencia,
+                                                        len(respostas_palavras_int),
+                                                        len(perguntas_palavras_int),
+                                                        tamanho_codificador_embeddings,
+                                                        tamanho_codificador_embeddings,
+                                                        rnn_tamanho,
+                                                        numero_camadas,
+                                                        perguntas_palavras_int)
+
