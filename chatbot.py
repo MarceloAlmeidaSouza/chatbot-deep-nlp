@@ -1,6 +1,7 @@
 #Construção do chatbot com Deep NLP
 #pip install tensorflow-addons
-#pip instrall contractions==0.0.18
+#pip install contractions==0.0.18
+#pip install tensorflow==1.6.0
 #conda install python=3.6
 #Importação das bibliotecas
 import numpy as np, time, re, contractions, tensorflow as tf
@@ -147,10 +148,20 @@ def decodifica_base_treinamento(encoder_estado, decodificador_celula,
                                 decodificador_embedded_entrada, tamanho_sequencia,
                                 decodificador_escopo, funcao_saida,
                                 keep_prob, batch_size):
+    
+    max_time = 7
+    hidden_size = 32
+    memory = tf.random.uniform([batch_size, max_time, hidden_size])
+    memory_sequence_length = tf.fill([batch_size], max_time)
+
+    attention_mechanism = tf.seq2seq.LuongAttention(hidden_size)
+    attention_mechanism.setup_memory(memory, memory_sequence_length)                            
+    attention_mechanism = tf.contrib.seq2seq.LuongAttention(32)
     estados_atencao = tf.zeros([batch_size, 1, decodificador_celula.output_size])
-    attention_keys, attention_values, attention_score_function, attention_construct_function = tf.contrib.seq2seq.prepare_attention(estados_atencao,
-                                                                                                                                    attention_option = 'bahdanau',
-                                                                                                                                    num_units = decodificador_celula.output_size)
+    attention_keys, attention_values, attention_score_function, attention_construct_function = tf.contrib.seq2seq.AttentionWrapper(estados_atencao,
+                                                                                                                                    attention_mechanism=attention_mechanism,
+                                                                                                                                    name = 'bahdanau',
+                                                                                                                                    attention_layer_size = decodificador_celula.output_size)
     funcao_decodificador_treinamento = tf.contrib.seq2seq.attention_decoder_fn_train(encoder_estado[0],
                                                                                      attention_keys, 
                                                                                      attention_values, 
@@ -171,7 +182,7 @@ def decodifica_base_teste(encoder_estado, decodificador_celula,
                           numero_palavras, decodificador_escopo, funcao_saida,
                           keep_prob, batch_size):                          
     estados_atencao = tf.zeros([batch_size, 1, decodificador_celula.output_size])
-    attention_keys, attention_values, attention_score_function, attention_construct_function = tf.contrib.seq2seq.prepare_attention(estados_atencao,
+    attention_keys, attention_values, attention_score_function, attention_construct_function = tf.contrib.seq2seq.AttentionWrapper(estados_atencao,
                                                                                                                                     attention_option = 'bahdanau',
                                                                                                                                     num_units = decodificador_celula.output_size)
     funcao_decodificador_teste = tf.contrib.seq2seq.attention_decoder_fn_inference(funcao_saida,
@@ -269,7 +280,8 @@ min_learning_rate = .0001
 probability_dropout = .5
 
 # Definição da seção
-tf.reset_default_graph()
+from tensorflow.python.framework import ops
+ops.reset_default_graph()
 session = tf.InteractiveSession()
 
 # Carregamento do modelo
